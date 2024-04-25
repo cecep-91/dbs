@@ -4,7 +4,6 @@
 Automatisasi install database menggunakan ansible playbook.
 ## 1. Notes
 ### B. Playbook Notes
-- Download dbs.zip: https://drive.google.com/drive/folders/1OfohIZRn6-_5MdKnk_XyW_K3I21aqBKi?usp=sharing 
 - Databases: Mariadb, Mysql, Postgresql, Redis, Mongodb
 - Hanya pernah ditest di server Ubuntu 22.04 LTS
 - Belum ada error handling di playbook
