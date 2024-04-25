@@ -1,0 +1,28 @@
+    - name: Stop MongoDB service
+      service:
+        name: mongod
+        state: stopped
+      ignore_errors: yes
+
+    - name: Uninstall MongoDB package
+      apt:
+        autoremove: yes
+        autoclean: yes
+        name: mongodb-org
+        state: absent
+
+    - name: Remove MongoDB apt repository
+      apt_repository:
+        repo: "{{ item }}"
+        state: absent
+      loop:
+        - deb [ arch=amd64,arm64 signed-by=/usr/share/keyrings/mongodb-server-7.0.gpg ] https://repo.mongodb.org/apt/ubuntu jammy/mongodb-org/7.0 multiverse
+        - deb [ arch=amd64,arm64 signed-by=/usr/share/keyrings/mongodb-server-4.4.gpg ] https://repo.mongodb.org/apt/ubuntu focal/mongodb-org/4.4 multiverse
+
+    - name: Delete MongoDB data directory
+      file:
+        path: "{{ item }}"
+        state: absent
+      loop:
+        - "{{ mongodb_data_dir }}"
+        - /etc/mongod.conf

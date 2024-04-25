@@ -1,0 +1,17 @@
+    - name: Stop MySQL service
+      service:
+        name: mysql
+        state: stopped
+      ignore_errors: yes
+
+    - name: Uninstall MySQL package
+      shell: "DEBIAN_FRONTEND=noninteractive apt purge -y mysql-server mysql-client mysql-common mysql-server-core-* mysql-client-core-*;DEBIAN_FRONTEND=noninteractive apt autoremove -y;"
+
+    - name: Delete MySQL data 
+      file:
+        path: "{{ item }}"
+        state: absent
+      loop:
+        - /etc/mysql
+        - /var/lib/mysql
+        - /var/log/mysql

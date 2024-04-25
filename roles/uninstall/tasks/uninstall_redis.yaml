@@ -1,0 +1,24 @@
+    - name: delete all data
+      shell: "redis-cli -a {{ access_key }} -h {{ ansible_default_ipv4.address }} -p {{ item }} FLUSHALL"
+      loop:
+       - 7000
+       - 6379
+       - 7001
+      ignore_errors: yes
+
+    - name: Uninstall Redis package
+      apt:
+        autoremove: yes
+        autoclean: yes
+        name: redis-server
+        state: absent
+
+    - name: Delete Redis data directory
+      file:
+        path: "{{ item }}"
+        state: absent
+      loop:
+        - /var/lib/redis
+        - /etc/redis
+        - /etc/systemd/system/redis_7000.service
+        - /etc/systemd/system/redis_7001.service

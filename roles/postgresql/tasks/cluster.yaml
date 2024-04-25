@@ -1,0 +1,182 @@
+
+    - name: Add PostgreSQL apt repository entry # Add official postgresql repository
+      lineinfile:
+        path: /etc/apt/sources.list.d/pgdg.list
+        line: 'deb https://apt.postgresql.org/pub/repos/apt {{ ansible_distribution_release }}-pgdg main'
+        create: yes
+
+    - name: Download and add PostgreSQL signing key
+      apt_key:
+        url: 'https://www.postgresql.org/media/keys/ACCC4CF8.asc'
+        state: present
+
+    - name: Update apt cache
+      apt:
+        update_cache: yes
+
+    - name: Install PostgreSQL # Install postgresql packages
+      apt:
+        name: "{{ item }}"
+        state: present
+        update_cache: yes
+      loop:
+        - postgresql-{{ postgresql_version }}
+        - postgresql-contrib
+        - python3-psycopg2
+
+    - name: Stop PostgreSQL first # Stop postgresql, we use different data dir
+      systemd:
+        name: postgresql
+        state: stopped
+
+    - name: Create PostgreSQL data directory and set permissions # Create custom data dir
+      file:
+        path: "{{ postgresql_datadir }}"
+        state: directory
+        mode: 0700
+        owner: postgres
+        group: postgres
+
+    - name: Find the initdb binary file # Find the initdb binary to initiate a postgresql database to custom directory
+      find:
+        paths: /usr/lib/postgresql/
+        patterns: initdb
+        recurse: yes
+      register: initdb_bin
+
+    - name: Find the pg_ctl binary file # Find the pg_ctl binary to control postgresql state
+      find:
+        paths: /usr/lib/postgresql/
+        patterns: pg_ctl
+        recurse: yes
+      register: pg_ctl_bin
+
+    - name: Find the pg_basebackup binary file # Find the pg_basebackup for slave to copy database from master
+      find:
+        paths: /usr/lib/postgresql/
+        patterns: pg_basebackup
+        recurse: yes
+      register: pg_basebackup_bin
+
+    - name: Initdb # Init a fresh database to custom dir
+      become_user: postgres
+      shell: "{{ initdb_bin.files.0.path }} -D {{ postgresql_datadir }}"
+      when: isMaster
+
+    - name: Create conf.d directory # Create a custom .conf,d folder to store custom .conf
+      file:
+        path: "{{ postgresql_datadir }}/conf.d"
+        state: directory
+        mode: 0700
+        owner: postgres
+        group: postgres
+      when: isMaster
+
+    - name: Include conf.d # includir to render custom .conf
+      lineinfile:
+        path: "{{ postgresql_datadir }}/postgresql.conf"
+        line: "include_dir = 'conf.d'"
+        state: present
+      when: isMaster
+
+    - name: Copy master postgresql.conf to server # Copy .conf template to master server
+      template:
+        src: master_cluster.conf.j2
+        dest: "{{ postgresql_datadir }}/conf.d/postgresql.conf"
+      when: isMaster
+
+    - name: pg_ctl start # Start the postgresql database
+      become_user: postgres
+      shell: "{{ pg_ctl_bin.files.0.path }} -D {{ postgresql_datadir }}/ -o '-c config_file={{ postgresql_datadir }}/conf.d/postgresql.conf' -l {{ postgresql_datadir }}/logfile start"
+      when: isMaster
+
+    - name: Wait for postgresql replica to set up
+      wait_for:
+        timeout: 10
+
+    - name: Add replication user # Add replica user for slave to copy database
+      become_user: postgres
+      shell: >
+        psql -c "CREATE USER replica_user WITH REPLICATION LOGIN PASSWORD 'Replica2024';"
+      when: isMaster
+      ignore_errors: yes
+
+    - name: Set PostgreSQL password # Set postgres user password
+      become_user: postgres
+      shell: psql -c "ALTER USER postgres WITH PASSWORD '{{ postgres_password }}';"
+      when: isMaster
+
+    - name: Edit pg_hba # edit pg_hba to to accept all external connection
+      lineinfile:
+        path: "{{ postgresql_datadir }}/pg_hba.conf"
+        line: "{{ item }}"
+        state: present
+      loop:
+        - "host    all             all             0.0.0.0/0               md5  "
+      when: isMaster
+
+    - name: Edit pg_hba to accept replica connection # Accept replica connectionfrom replica member
+      postgresql_pg_hba:
+        dest: "{{ postgresql_datadir }}/pg_hba.conf"
+        contype: host
+        users: replica_user
+        source: "{{ hostvars[item]['ansible_default_ipv4']['address'] }}/32"
+        databases: replication
+        method: md5
+        create: true
+      with_items: "{{ ansible_play_hosts_all }}"
+      when: isMaster
+
+    - name: Edit pg_hba to trust replica node # Trust all connection from replica member
+      postgresql_pg_hba:
+        dest: "{{ postgresql_datadir }}/pg_hba.conf"
+        contype: host
+        users: all
+        source: "{{ hostvars[item]['ansible_default_ipv4']['address'] }}/32"
+        databases: all
+        method: trust
+        create: true
+      with_items: "{{ ansible_play_hosts_all }}"
+      when: isMaster
+
+    - name: pg_ctl reload # Reload postgresql database to load new config
+      become_user: postgres
+      shell: "{{ pg_ctl_bin.files.0.path }} -D {{ postgresql_datadir }}/ -l {{ postgresql_datadir }}/logfile reload"
+      when: isMaster
+
+    - name: Allow incoming connections on PostgreSQL port
+      ufw:
+        rule: allow
+        port: '5432'
+        proto: tcp
+        state: reloaded
+
+    - name: Wait..
+      wait_for:
+        timeout: 5
+
+    - name: Synchronize PostgreSQL data directory in slaves # Copy database from master to slave servers
+      become_user: postgres
+      shell: "PGPASSWORD=Replica2024 {{ pg_basebackup_bin.files.0.path }} -h {{ groups['master'][0] }} -U replica_user -w -RD {{ postgresql_datadir }}/"
+      when: isSlaves
+
+    - name: pg_ctl start # Start the postgresql database on slave servers
+      become_user: postgres
+      shell: "{{ pg_ctl_bin.files.0.path }} -D {{ postgresql_datadir }}/ -l {{ postgresql_datadir }}/logfile start"
+      when: isSlaves
+
+    - name: Wait..
+      wait_for:
+        timeout: 10
+
+    - name: Replica info # Debugging replica status
+      become_user: postgres
+      shell: >
+        psql -c "select client_addr,state from pg_stat_replication;"
+      when: isMaster
+      register: cluster_status
+
+    - name: cluster status
+      debug:
+        msg: "{{ cluster_status.stdout_lines }}"
+      when: isMaster

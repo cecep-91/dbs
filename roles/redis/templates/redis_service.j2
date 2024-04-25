@@ -1,0 +1,16 @@
+[Unit]
+Description=Redis key-value database on {{ port }}
+After=network.target
+
+[Service]
+ExecStart=/usr/bin/redis-server /etc/redis/cluster/{{ port }}/redis_{{ port }}.conf --supervised systemd
+ExecStop=/bin/redis-cli -h 127.0.0.1 -p {{ port }} shutdown
+Type=notify
+User=redis
+Group=redis
+RuntimeDirectory=/etc/redis/cluster/{{ port }}
+RuntimeDirectoryMode=0755
+LimitNOFILE=65535
+
+[Install]
+WantedBy=multi-user.target

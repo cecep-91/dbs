@@ -1,0 +1,31 @@
+
+    - name: Update apt cache # Install redis packages
+      apt:
+        update_cache: yes
+
+    - name: Install Redis server
+      apt:
+        name: redis-server
+        state: present
+        update_cache: yes
+
+    - name: Configure Redis to allow external connections # Allow all external connection 
+      lineinfile:
+        path: /etc/redis/redis.conf
+        regexp: '^bind'
+        line: 'bind 0.0.0.0'
+        state: present
+        create: yes
+
+    - name: Restart Redis
+      service:
+        name: redis-server
+        state: restarted
+
+    - name: Allow incoming connections on Redis port
+      ufw:
+        rule: allow
+        port: '6379'
+        proto: tcp
+        state: reloaded
+      

@@ -1,0 +1,4 @@
+mongodb_data_dir: "{{ database_vars.mongodb.mongodb_data_dir }}"
+postgresql_version: "{{ database_vars.postgresql.postgresql_version }}"
+postgresql_datadir: "{{ database_vars.postgresql.postgresql_datadir }}"
+access_key: "{{ database_vars.redis.access_key }}"

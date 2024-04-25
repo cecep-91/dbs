@@ -1,0 +1,63 @@
+
+    - name: Download and add MongoDB GPG key
+      apt_key:
+        url: https://www.mongodb.org/static/pgp/server-7.0.asc
+        keyring: /usr/share/keyrings/mongodb-server-7.0.gpg
+        state: present
+
+    - name: Add MongoDB apt repository
+      apt_repository:
+        repo: deb [ arch=amd64,arm64 signed-by=/usr/share/keyrings/mongodb-server-7.0.gpg ] https://repo.mongodb.org/apt/ubuntu jammy/mongodb-org/7.0 multiverse
+        state: present
+
+    - name: Install MongoDB
+      apt:
+        name: "{{ item }}"
+        state: present
+        update_cache: yes
+      loop:
+        - mongodb-org
+        - python3-pymongo
+
+    - name: Configure MongoDB # Copy .conf template to server
+      template:
+        src: mongodb_standalone.conf.j2
+        dest: /etc/mongod.conf
+
+    - name: Create directory for data # Create data dir for mongodb
+      file:
+        path: "{{ mongodb_data_dir }}"
+        state: directory
+        owner: mongodb
+        group: mongodb
+        mode: 0755
+
+    - name: Restart MongoDB
+      service:
+        name: mongod
+        state: restarted
+
+    - name: Allow incoming connections on MongoDB port
+      ufw:
+        rule: allow
+        port: '27017'
+        proto: tcp
+        state: reloaded
+
+    - name: Wait..
+      wait_for:
+        timeout: 10
+
+    - name: Create MongoDB user # Create mongodb user with root role to access from external
+      mongodb_user:
+        database: admin
+        name: "{{ mongodb_username }}"
+        password: "{{ mongodb_password }}"
+        state: present
+        roles: ["root"]
+
+    - shell: "systemctl status mongod" # Debuging mongodb systemctl status
+      ignore_errors: yes
+      register: service_status
+
+    - debug: var=service_status.stdout_lines

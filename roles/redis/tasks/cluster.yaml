@@ -1,0 +1,158 @@
+ # Redis cluster add 2 redis port and service on each server, port 7000 as a master and 7001 as a slave
+    - name: Update apt cache
+      apt:
+        update_cache: yes
+
+    - name: Install Redis server
+      apt:
+        name: redis-server
+        state: present
+
+    - name: Disable Redis server service # We use different conf, datadir, port
+      systemd:
+        name: redis-server
+        enabled: no
+        state: stopped
+
+    - name: Allow ports through UFW
+      ufw:
+        rule: allow
+        port: "{{ item }}"
+      loop:
+        - 7000
+        - 7001
+        - 17000
+        - 17001
+
+    - name: Apply sysctl configuration changes # sysctl thing
+      shell: |
+        echo never > /sys/kernel/mm/transparent_hugepage/enabled
+        sysctl -w net.core.somaxconn=65535
+
+    - name: Append configuration to rc.local # to run sysctl thing on server boot
+      lineinfile:
+        path: /etc/rc.local
+        state: present
+        create: yes
+        backrefs: no
+        line: "{{ item }}"
+      with_items:
+        - echo never > /sys/kernel/mm/transparent_hugepage/enabled
+        - sysctl -w net.core.somaxconn=65535
+
+    - name: Add executable permission to rc.local
+      file:
+        path: /etc/rc.local
+        mode: '0755'
+
+    - name: Add vm.overcommit_memory to sysctl.conf # Another sysctl thing for memory
+      lineinfile:
+        path: /etc/sysctl.conf
+        line: 'vm.overcommit_memory=1'
+        state: present
+
+    - name: Create Redis cluster directories # Create custom redis conf dir and data dir
+      file:
+        path: "{{ item }}"
+        state: directory
+      loop:
+        - /etc/redis/cluster
+        - /etc/redis/cluster/7000
+        - /var/lib/redis/7000
+        - /etc/redis/cluster/7001
+        - /var/lib/redis/7001
+
+    - name: Render Redis configuration template # Copy .conf template to server for both port
+      template:
+        src: cluster_redis.conf.j2
+        dest: /etc/redis/cluster/{{ port }}/redis_{{ port }}.conf
+      vars:
+        port: "{{ item }}"
+      loop:
+        - 7000
+        - 7001
+
+    - name: Set ownership for /var/lib/redis and /etc/redis directories # change datadir and conf dir ownership
+      file:
+        path: "{{ item }}"
+        owner: redis
+        group: redis
+        recurse: yes
+      loop:
+        - /var/lib/redis
+        - /etc/redis
+
+    - name: Set permissions for /var/lib/redis directory # change atadir and conf dir permission
+      file:
+        path: /var/lib/redis
+        mode: '0770'
+
+    - name: Render Redis service template
+      template:
+        src: redis_service.j2
+        dest: /etc/systemd/system/redis_{{ port }}.service
+      vars:
+        port: "{{ item }}"
+      loop:
+        - 7000
+        - 7001
+
+    - name: Reload systemd daemon
+      systemd:
+        daemon_reload: yes
+
+    - name: Enable and start Redis service # Enable both master and slave service
+      systemd:
+        name: redis_{{ port }}
+        enabled: yes
+        state: started
+      vars:
+        port: "{{ item }}"
+      loop:
+        - 7000
+        - 7001
+
+    - name: Gather IP addresses nodes # Gather all server's ip
+      tags:
+        - start
+      set_fact:
+        node_ips: "{{ groups['svr'] | map('extract', hostvars, ['ansible_default_ipv4', 'address']) | list }}"
+
+    - name: Generate cluster_address dynamically # Generate cluster address for redis cluster
+      tags:
+        - start
+      set_fact:
+        cluster_address: "{{ node_ips | join(':7000 ') }}:7000 {{ node_ips | join(':7001 ') }}:7001"
+
+    - name: Wait..
+      wait_for:
+        timeout: 5
+
+    - name: delete all data first, for clustering, ignore errors # Reset database, reset cluster
+      shell: "redis-cli -a {{ access_key }} -h {{ ansible_default_ipv4.address }} -p {{ item }} FLUSHALL; redis-cli -a {{ access_key }} -h {{ ansible_default_ipv4.address }} -p {{ item }} CLUSTER RESET"
+      loop:
+       - 7000
+       - 6379
+       - 7001
+      ignore_errors: yes
+
+    - name: delete all data first, for clustering, ignore errors # Reset database, reset cluster
+      shell: "redis-cli -c -a {{ access_key }} -h {{ ansible_default_ipv4.address }} -p {{ item }} FLUSHALL; redis-cli -c -a {{ access_key }} -h {{ ansible_default_ipv4.address }} -p {{ item }} CLUSTER RESET"
+      loop:
+       - 7000
+       - 6379
+       - 7001
+      ignore_errors: yes
+
+    - name: Start cluster # Start the cluster in primary server
+      tags:
+        - start
+      shell: "echo yes | redis-cli --cluster create {{ cluster_address }} --cluster-replicas 1 -a {{ access_key }}"
+      when: isMaster
+      register: isReady
+
+    - name: Make slave to readonly # Make the 7001 port (slave) to readonly
+      tags:
+        - start
+      shell: "redis-cli -c -a {{ access_key }} -h {{ ansible_default_ipv4.address }} -p 7001 readonly"
+      register: ok

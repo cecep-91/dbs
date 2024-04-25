@@ -1,0 +1,17 @@
+[galera]
+wsrep_on                 = ON
+wsrep_provider           = /usr/lib/galera/libgalera_smm.so
+wsrep_cluster_name       = "MariaDB Galera Cluster"
+wsrep_cluster_address    = "{{ wsrep_cluster_address }}"
+binlog_format            = row
+default_storage_engine   = InnoDB
+innodb_autoinc_lock_mode = 2
+innodb_force_primary_key = 1
+innodb_doublewrite       = 1
+
+bind-address = 0.0.0.0
+
+wsrep_slave_threads            = 4
+innodb_flush_log_at_trx_commit = 0
+wsrep_node_name                = "galera-node-{{ ansible_hostname }}"
+wsrep_node_address             = "{{ ansible_default_ipv4.address }}"

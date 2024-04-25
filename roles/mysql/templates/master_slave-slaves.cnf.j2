@@ -1,0 +1,8 @@
+[mysqld]
+server-id         = {{ id }}
+bind-address      = 0.0.0.0
+log_bin           = /var/log/mysql/mysql-bin.log
+relay-log         = /var/log/mysql/mysql-relay-bin.log
+read_only         = 1
+binlog_format     = ROW
+sync_binlog       = 1

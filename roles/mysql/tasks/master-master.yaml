@@ -1,0 +1,170 @@
+
+    - name: Install MySQL-server
+      ansible.builtin.apt:
+        name: "{{ item }}"
+        state: present
+        update_cache: yes
+      loop:
+        - mysql-server
+        - python3
+        - python3-mysqldb # Digunakan untuk menggunakan module mysql_*
+
+    - name: Start and enable MySQL service
+      service:
+        name: mysql
+        state: started
+        enabled: yes
+
+    - name: Configure root user # Change root user password
+      mysql_user:
+        name: root
+        password: "{{ root_password }}"
+        priv: "*.*:ALL,GRANT"
+        login_unix_socket: /run/mysqld/mysqld.sock
+        column_case_sensitive: false
+
+    - name: Create MySQL user # Create user with admin privileges
+      community.mysql.mysql_user:
+        name: "{{ db_user }}"
+        password: "{{ db_password }}"
+        priv: "*.*:ALL,GRANT"
+        host: "%"
+        login_user: root
+        login_password: "{{ root_password }}"
+        state: present
+        login_unix_socket: /run/mysqld/mysqld.sock
+        column_case_sensitive: false
+    
+    - name: Allowing UFW
+      tags: expose
+      community.general.ufw:
+        port: 3306
+        rule: allow
+        proto: tcp
+        state: reloaded
+
+    - name: Copy conf from template # Copy .conf template to server master1
+      template:
+        src: master_master-master1.cnf.j2
+        dest: /etc/mysql/conf.d/my-custom.cnf
+      when: master1 == "yes"
+
+    - name: include in my.cnf # includedir to render custom .conf in master1
+      blockinfile:
+        path: /etc/mysql/my.cnf
+        block: |-
+          !includedir /etc/mysql/conf.d/
+        create: yes
+      when: master1 == "yes"
+
+    - name: Copy conf from template # Copy .conf template to server master2
+      template:
+        src: master_master-master2.cnf.j2
+        dest: /etc/mysql/conf.d/my-custom.cnf
+      when: master2 == "yes"
+
+    - name: include in my.cnf # includedir to render custom .conf in master2
+      blockinfile:
+        path: /etc/mysql/my.cnf
+        block: |-
+          !includedir /etc/mysql/conf.d/
+        create: yes
+      when: master2 == "yes"
+
+    - name: Restart MySQL service on masters 
+      service:
+        name: mysql
+        state: restarted
+
+    - name: Wait..
+      wait_for:
+        timeout: 10
+
+    - name: Create replication user on master # Create replication user on master1
+      mysql_user:
+        name: replicator1
+        password: "{{ root_password }}"
+        host: "%"
+        priv: "*.*:REPLICATION SLAVE"
+        login_user: root
+        login_password: "{{ root_password }}"
+        state: present
+        login_unix_socket: /run/mysqld/mysqld.sock
+        column_case_sensitive: false
+      when: master1 == "yes"
+      ignore_errors: yes
+
+    - name: Create replication user on master # Create replication user on master2
+      mysql_user:
+        name: replicator2
+        password: "{{ root_password }}"
+        host: "%"
+        priv: "*.*:REPLICATION SLAVE"
+        login_user: root
+        login_password: "{{ root_password }}"
+        state: present
+        login_unix_socket: /run/mysqld/mysqld.sock
+        column_case_sensitive: false
+      when: master2 == "yes"
+      ignore_errors: yes
+
+    - name: Get master replication status # Gather master status to get master log file and master log position
+      tags: check
+      mysql_replication:
+        login_user: root
+        login_password: "{{ root_password }}"
+        mode: getprimary
+        login_unix_socket: /run/mysqld/mysqld.sock
+      register: master_status
+
+    - name: Make sure slave is stopped # Stop slave to be able to start slave replication
+      community.mysql.mysql_query:
+        query: stop slave;
+        login_user: root
+        login_password: "{{ root_password }}"
+        login_unix_socket: /run/mysqld/mysqld.sock      
+
+    - name: Start slave replication on master1 # Add replication information to master1
+      mysql_replication:
+        mode: changeprimary
+        master_host: "{{ groups['slaves'][0] }}"
+        master_user: replicator2
+        master_password: "{{ root_password }}"
+        master_port: 3306
+        master_log_file: "{{ hostvars[groups['slaves'][0]].master_status.File }}"
+        master_log_pos: "{{ hostvars[groups['slaves'][0]].master_status.Position }}"
+        login_user: root
+        login_password: "{{ root_password }}"
+        login_unix_socket: /run/mysqld/mysqld.sock
+      when: master1  == "yes"
+
+    - name: Start slave replication on master2 # Add replication information to master1
+      mysql_replication:
+        mode: changeprimary
+        master_host: "{{ groups['master'][0] }}"
+        master_user: replicator1
+        master_password: "{{ root_password }}"
+        master_port: 3306
+        master_log_file: "{{ hostvars[groups['master'][0]].master_status.File }}"
+        master_log_pos: "{{ hostvars[groups['master'][0]].master_status.Position }}"
+        login_user: root
+        login_password: "{{ root_password }}"
+        login_unix_socket: /run/mysqld/mysqld.sock
+      when: master2  == "yes"
+
+    - name: Start slave # Start replication on both servers
+      community.mysql.mysql_query:
+        query: reset slave; start slave;
+        login_user: root
+        login_password: "{{ root_password }}"
+        login_unix_socket: /run/mysqld/mysqld.sock     
+
+    - name: Wait..
+      wait_for:
+        timeout: 10
+
+    - shell: "mysql -u root --password={{ root_password }} -e 'show slave status\\G;'" # Debugging slave status
+      register: command_output
+
+    - debug:
+        var: command_output.stdout_lines

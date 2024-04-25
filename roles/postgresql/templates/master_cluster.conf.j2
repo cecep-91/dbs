@@ -1,0 +1,20 @@
+max_connections = 40
+shared_buffers = 1840MB # Sesuaikan agar tidak melebihi available RAM
+effective_cache_size = 11520MB
+maintenance_work_mem = 1920MB
+checkpoint_completion_target = 0.9
+wal_buffers = 16MB
+default_statistics_target = 500
+random_page_cost = 4
+effective_io_concurrency = 2
+work_mem = 24MB
+min_wal_size = 4GB
+max_wal_size = 16GB
+
+log_timezone = 'Asia/Jakarta'
+listen_addresses = '*'
+wal_level = replica
+max_wal_senders = 10
+wal_keep_size = 64
+hot_standby = on
+wal_log_hints = on

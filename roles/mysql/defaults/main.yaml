@@ -1,0 +1,3 @@
+db_user: "{{ database_vars.mysql.db_user }}"
+db_password: "{{ database_vars.mysql.db_password }}"
+root_password: "{{ database_vars.mysql.root_password }}"

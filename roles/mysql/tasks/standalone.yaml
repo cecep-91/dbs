@@ -1,0 +1,63 @@
+
+  - name: Install MySQL-server
+    ansible.builtin.apt:
+      name: "{{ item }}"
+      state: present
+      update_cache: yes
+    loop:
+        - mysql-server
+        - python3-mysqldb
+
+  - name: Start and enable MySQL service
+    service:
+      name: mysql
+      state: started
+      enabled: yes
+
+  - name: Configure root user # Chagne root user password
+    mysql_user:
+      name: root
+      password: "{{ root_password }}"
+      priv: "*.*:ALL,GRANT"
+      column_case_sensitive: false
+
+  - name: Create MySQL user # Create user with admin privileges
+    community.mysql.mysql_user:
+      name: "{{ db_user }}"
+      password: "{{ db_password }}"
+      priv: "*.*:ALL,GRANT"
+      host: "%"
+      login_user: root
+      login_password: "{{ root_password }}"
+      state: present
+      column_case_sensitive: false
+  
+  - name: Allowing UFW
+    community.general.ufw:
+      port: 3306
+      rule: allow
+      proto: tcp
+      state: reloaded
+
+  - name: Copy conf from template # Copy .conf template to servers
+    template:
+      src: standalone.cnf.j2
+      dest: /etc/mysql/conf.d/my-custom.cnf
+
+  - name: include in my.cnf # includeir to render custom .conf
+    blockinfile:
+      path: /etc/mysql/my.cnf
+      block: |-
+        !includedir /etc/mysql/conf.d/
+      create: yes
+ 
+  - name: Restarting service
+    service:
+      name: mysql
+      state: restarted
+    
+  - shell: "systemctl status mysql" # Debugging mysql systemctl status
+    ignore_errors: yes
+    register: service_status
+
+  - debug: var=service_status.stdout_lines

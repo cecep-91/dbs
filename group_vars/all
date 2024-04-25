@@ -1,0 +1,31 @@
+# Configurable vars
+database_vars:
+  mariadb:
+    # Variables for both standalone and galera cluster mariadb
+    db_user: admin                        # user with admin privilege
+    db_password: "rahasia2024"            # password for above user
+    root_password: "r4h4s142o24"          # root password
+
+  mongodb:
+    # Vars both standalone & cluster
+    mongodb_username: engineer            # user with 'root' role
+    mongodb_password: rahasia2024         # password for above user
+    mongodb_data_dir: /var/lib/mongodb    # Mongodb data directory
+    # Vars cluster only
+    replSetName: rs0                      # mongodb replicaset name
+
+  mysql:
+    # Vars for both standalone & cluster
+    db_user: admin                        # user with admin privilege
+    db_password: rahasia2024              # password for above user
+    root_password: r4h4s142o24            # root password
+
+  postgresql:
+    # Vars both standalone & cluster
+    postgres_password: rahasia2024        # Default 'postgres' user's password
+    postgresql_version: 16                # postgresql version to install
+    postgresql_datadir: /PostgreSQL/data  # Postgresql data directory
+
+  redis:
+    # Vars cluster only
+    access_key: passwordRedisRahasia2024  # auth_key for connecting to redis

@@ -1,0 +1,3 @@
+postgres_password: "{{ database_vars.postgresql.postgres_password }}"
+postgresql_version: "{{ database_vars.postgresql.postgresql_version }}"
+postgresql_datadir: "{{ database_vars.postgresql.postgresql_datadir }}"

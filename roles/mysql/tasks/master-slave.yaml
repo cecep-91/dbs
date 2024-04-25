@@ -1,0 +1,148 @@
+
+    - name: Install MySQL-server
+      ansible.builtin.apt:
+        name: "{{ item }}"
+        state: present
+        update_cache: yes
+      loop:
+        - mysql-server
+        - python3
+        - python3-mysqldb # Digunakan untuk menggunakan module mysql_*
+
+    - name: Start and enable MySQL service
+      service:
+        name: mysql
+        state: started
+        enabled: yes
+
+    - name: Configure root user # Change rooth user password
+      mysql_user:
+        name: root
+        password: "{{ root_password }}"
+        priv: "*.*:ALL,GRANT"
+        login_unix_socket: /run/mysqld/mysqld.sock
+        column_case_sensitive: false
+
+    - name: Create MySQL user # Create user with admin privileges
+      community.mysql.mysql_user:
+        name: "{{ db_user }}"
+        password: "{{ db_password }}"
+        priv: "*.*:ALL,GRANT"
+        host: "%"
+        login_user: root
+        login_password: "{{ root_password }}"
+        state: present
+        login_unix_socket: /run/mysqld/mysqld.sock
+        column_case_sensitive: false
+
+    - name: Allowing UFW
+      tags: expose
+      community.general.ufw:
+        port: 3306
+        rule: allow
+        proto: tcp
+        state: reloaded
+
+    - name: Copy conf from template # Copy .conf template to master server
+      template:
+        src: master_slave-master.cnf.j2
+        dest: /etc/mysql/conf.d/my-custom.cnf
+      when: isMaster
+
+    - name: include in my.cnf # includedir to render custom conf
+      blockinfile:
+        path: /etc/mysql/my.cnf
+        block: |-
+          !includedir /etc/mysql/conf.d/
+        create: yes
+      when: isMaster
+
+    - name: Restart MySQL service on master # Restart master to apply changes
+      service:
+        name: mysql
+        state: restarted
+      when: isMaster
+
+    - name: Wait..
+      wait_for:
+        timeout: 10
+
+    - name: Create replication user on master # Create replication user in master
+      mysql_user:
+        name: replica_user
+        password: "{{ root_password }}"
+        host: "%"
+        priv: "*.*:REPLICATION SLAVE"
+        login_user: root
+        login_password: "{{ root_password }}"
+        state: present
+        login_unix_socket: /run/mysqld/mysqld.sock
+        column_case_sensitive: false
+
+      when: isMaster
+
+    - name: Get master replication status # Get master status to get master log file and master log position
+      tags: check
+      mysql_replication:
+        login_user: root
+        login_password: "{{ root_password }}"
+        mode: getprimary
+        login_unix_socket: /run/mysqld/mysqld.sock
+      register: master_status
+      when: isMaster
+
+    - name: Copy conf from template # Copy .conf template to slave servers
+      template:
+        src: master_slave-slaves.cnf.j2
+        dest: /etc/mysql/conf.d/my-custom.cnf
+      when: isSlaves
+
+    - name: include in my.cnf # includedir to render custom .conf
+      blockinfile:
+        path: /etc/mysql/my.cnf
+        block: |-
+          !includedir /etc/mysql/conf.d/
+        create: yes
+      when: isSlaves
+      
+    - name: Make sure slave is stopped # stop slave to start new replication
+      community.mysql.mysql_query:
+        query: stop slave;
+        login_user: root
+        login_password: "{{ root_password }}"
+        login_unix_socket: /run/mysqld/mysqld.sock      
+
+    - name: Start slave replication # Add replication info to slave servers
+      mysql_replication:
+        mode: changeprimary
+        master_host: "{{ groups['master'][0] }}"
+        master_user: replica_user
+        master_password: "{{ root_password }}"
+        master_port: 3306
+        master_log_file: "{{ hostvars[groups['master'][0]].master_status.File }}"
+        master_log_pos: "{{ hostvars[groups['master'][0]].master_status.Position }}"
+        login_user: root
+        login_password: "{{ root_password }}"
+        login_unix_socket: /run/mysqld/mysqld.sock
+      when: isSlaves
+
+    - name: Restart MySQL service on slaves
+      service:
+        name: mysql
+        state: restarted
+      when: isSlaves
+
+    - name: Start slave # Start slave replication on slave servers
+      community.mysql.mysql_query:
+        query: reset slave; start slave;
+        login_user: root
+        login_password: "{{ root_password }}"
+        login_unix_socket: /run/mysqld/mysqld.sock     
+
+    - shell: "mysql -u root --password={{ root_password }} -e 'show slave status\\G;'" # Debugging slave status
+      register: command_output
+      when: isSlaves
+
+    - debug:
+        var: command_output.stdout_lines
+      when: isSlaves

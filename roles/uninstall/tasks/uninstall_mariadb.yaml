@@ -1,0 +1,24 @@
+    - name: Stop MariaDB service
+      service:
+        name: mysql
+        state: stopped
+      ignore_errors: yes
+
+    - name: Uninstall MariaDB package
+      shell: "DEBIAN_FRONTEND=noninteractive apt purge -y mariadb* mysql-common;DEBIAN_FRONTEND=noninteractive apt autoremove -y"
+
+    - name: Remove Mariadb apt repository
+      apt_repository:
+        repo: "{{ item }}"
+        state: absent
+      loop:
+        - deb [arch=amd64,arm64,ppc64el] http://mirror.lstn.net/mariadb/repo/10.5/ubuntu focal main
+
+    - name: Delete MariaDB data 
+      file:
+        path: "{{ item }}"
+        state: absent
+      loop:
+        - /etc/mysql
+        - /var/lib/mysql
+        - /var/log/mysql

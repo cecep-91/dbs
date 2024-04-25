@@ -1,0 +1,5 @@
+- include_tasks: standalone.yaml
+  when: install_redis and type == "standalone"
+
+- include_tasks: cluster.yaml
+  when: install_redis and type == "cluster"

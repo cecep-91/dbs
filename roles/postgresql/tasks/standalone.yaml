@@ -1,0 +1,106 @@
+---
+    - name: Add PostgreSQL apt repository entry # Add official postgresql repository
+      lineinfile:
+        path: /etc/apt/sources.list.d/pgdg.list
+        line: 'deb https://apt.postgresql.org/pub/repos/apt {{ ansible_distribution_release }}-pgdg main'
+        create: yes
+
+    - name: Download and add PostgreSQL signing key
+      apt_key:
+        url: 'https://www.postgresql.org/media/keys/ACCC4CF8.asc'
+        state: present
+
+    - name: Update apt cache
+      apt:
+        update_cache: yes
+
+    - name: Install PostgreSQL # Install postgresql packages
+      apt:
+        name: "{{ item }}"
+        state: present
+        update_cache: yes
+      loop:
+        - postgresql-{{ postgresql_version }}
+        - postgresql-contrib
+        - python3-psycopg2 # Used to run some ansible task with postgeresql_* module
+
+    - name: Stop PostgreSQL first # We use different database directory
+      systemd:
+        name: postgresql
+        state: stopped
+
+    - name: Create PostgreSQL data directory and set permissions # Create custom postgresql data dir
+      file:
+        path: "{{ postgresql_datadir }}"
+        state: directory
+        mode: 0700
+        owner: postgres
+        group: postgres
+
+    - name: Find the initdb binary file # Find the initdb binary to initiate a postgresql database to custom directory
+      find:
+        paths: /usr/lib/postgresql/
+        patterns: initdb
+        recurse: yes
+      register: initdb_bin
+
+    - name: Find the pg_ctl binary file # Find the pg_ctl to control postgresql database state
+      find:
+        paths: /usr/lib/postgresql/
+        patterns: pg_ctl
+        recurse: yes
+      register: pg_ctl_bin
+
+    - name: Initdb # Initiate a postgresql to custom directory
+      become_user: postgres
+      shell: "{{ initdb_bin.files.0.path }} -D {{ postgresql_datadir }}"
+
+    - name: Create conf.d directory # Create custom conf.d directory for custom .conf
+      file:
+        path: "{{ postgresql_datadir }}/conf.d"
+        state: directory
+        mode: 0700
+        owner: postgres
+        group: postgres
+
+    - name: Include conf.d # includedir to render custom .conf
+      lineinfile:
+        path: "{{ postgresql_datadir }}/postgresql.conf"
+        line: "include_dir = 'conf.d'"
+        state: present
+
+    - name: Copy postgresql.conf to server # Copy .conf template to servers
+      template:
+        src: standalone.conf.j2
+        dest: "{{ postgresql_datadir }}/conf.d/postgresql.conf"
+
+    - name: pg_ctl start # Start the postgresql database
+      become_user: postgres
+      shell: "{{ pg_ctl_bin.files.0.path }} -D {{ postgresql_datadir }}/ -o '-c config_file={{ postgresql_datadir }}/conf.d/postgresql.conf' -l {{ postgresql_datadir }}/logfile start"
+
+    - name: Wait for postgresql to set up
+      wait_for:
+        timeout: 5
+
+    - name: Set PostgreSQL password # Change postgres user password
+      become_user: postgres
+      shell: psql -c "ALTER USER postgres WITH PASSWORD '{{ postgres_password }}';"
+      
+    - name: Edit pg_hba # Edit pg_hba to accept all external connection
+      lineinfile:
+        path: "{{ postgresql_datadir }}/pg_hba.conf"
+        line: "{{ item }}"
+        state: present
+      loop:
+        - "host    all             all             0.0.0.0/0               md5  "
+
+    - name: pg_ctl reload # Reload postgresql database to load a new configuration
+      become_user: postgres
+      shell: "{{ pg_ctl_bin.files.0.path }} -D {{ postgresql_datadir }}/ -l {{ postgresql_datadir }}/logfile reload"
+
+    - name: Allow incoming connections on PostgreSQL port
+      ufw:
+        rule: allow
+        port: '5432'
+        proto: tcp
+        state: reloaded

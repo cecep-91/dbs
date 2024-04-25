@@ -1,0 +1,49 @@
+    - name: Stop PostgreSQL service
+      service:
+        name: postgresql
+        state: stopped
+      ignore_errors: yes
+
+    - name: Find the pg_ctl binary file
+      find:
+        paths: /usr/lib/postgresql/
+        patterns: pg_ctl
+        recurse: yes
+      register: pg_ctl_bin
+
+    - name: pg_ctl stop
+      become_user: postgres
+      shell: "{{ pg_ctl_bin.files.0.path }} -D {{ postgresql_datadir }}/ -l /PostgreSQL/data/logfile stop"
+      ignore_errors: yes
+
+    - name: Uninstall PostgreSQL package(s)
+      apt:
+        autoremove: yes
+        autoclean: yes
+        name: "{{ item }}"
+        state: absent
+      loop:
+        - postgresql-{{ postgresql_version }}
+        - postgresql-common
+        - postgresql-client-common
+        - postgresql-client-{{ postgresql_version }}
+
+    - name: Delete PostgreSQL data directory
+      file:
+        path: "{{ item }}"
+        state: absent
+      loop:
+        - /var/lib/postgresql/
+        - /PostgreSQL/data
+        - /var/log/postgresql/
+
+    - name: Delete PostgreSQL user
+      user:
+        name: postgres
+        state: absent
+        remove: yes
+
+    - name: Delete PostgreSQL group
+      group:
+        name: postgres
+        state: absent

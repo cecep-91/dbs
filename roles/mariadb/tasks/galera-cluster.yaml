@@ -1,0 +1,122 @@
+    - name: Download libssl1.1 package # Install ependency for galera-4
+      get_url:
+        url: http://archive.ubuntu.com/ubuntu/pool/main/o/openssl/libssl1.1_1.1.1f-1ubuntu2_amd64.deb
+        dest: /tmp/libssl1.1_1.1.1f-1ubuntu2_amd64.deb
+
+    - name: Install libssl1.1 package
+      become: yes
+      apt:
+        deb: /tmp/libssl1.1_1.1.1f-1ubuntu2_amd64.deb
+        state: present
+
+    - name: Add MariaDB repository key
+      apt_key:
+        keyserver: "hkp://keyserver.ubuntu.com:80"
+        id: "0xF1656F24C74CD1D8"
+        state: present
+
+    - name: Add MariaDB apt repository # Add Mariadb 10.5 repository
+      apt_repository:
+        repo: "deb [arch=amd64,arm64,ppc64el] http://mirror.lstn.net/mariadb/repo/10.5/ubuntu focal main"
+        state: present
+        update_cache: yes
+
+    - name: Install required packages
+      apt:
+        name: "{{ item }}"
+        state: present
+        update_cache: yes
+      loop:
+        - mariadb-server
+        - galera-4
+        - python3-mysqldb # Needed for ansible task with mysql_* module
+
+    - name: Copy somehow-not-exsisted file # For mariadb to be able to start
+      template:
+        src: debian-start
+        dest: /etc/mysql/debian-start 
+        mode: +x
+
+    - name: include conf directory in my.cnf # Includedir /etc/mysql/mariadb.conf.d/
+      blockinfile:
+        path: /etc/mysql/my.cnf
+        block: |
+          !includedir /etc/mysql/mariadb.conf.d/
+        create: yes
+
+    - name: Start and enable MariaDB service # Start mariadb to configure root and admin user
+      service:
+        name: mariadb
+        state: started
+        enabled: yes
+
+    - name: Wait..
+      wait_for:
+        timeout: 5
+
+    - name: Configure root user # Change root user password
+      ignore_errors: yes
+      mysql_user:
+        name: root
+        password: "{{ root_password }}"
+        priv: "*.*:ALL,GRANT"
+        column_case_sensitive: false
+
+    - name: Create MariaDB user # Add user with admin privilege
+      community.mysql.mysql_user:
+        name: "{{ db_user }}"
+        password: "{{ db_password }}"
+        priv: "*.*:ALL,GRANT"
+        host: "%"
+        login_user: root
+        login_password: "{{ root_password }}"
+        state: present
+        column_case_sensitive: false
+
+    - name: Gather IP addresses of Galera nodes # Collects all ip from group
+      tags:
+        - fact
+      set_fact:
+        galera_node_ips: "{{ groups['svr'] | map('extract', hostvars, ['ansible_default_ipv4', 'address']) | list }}"
+
+    - name: Generate wsrep_cluster_address dynamically # Create gcomm:// with all ip that was collected
+      tags:
+        - fact
+      set_fact:
+        wsrep_cluster_address: "gcomm://{{ galera_node_ips | join(',') }}"
+
+    - name: Configure MariaDB for Galera Cluster # Copy .conf template to server
+      tags:
+        - fact
+      template:
+        src: mariadb_cluster.cnf.j2
+        dest: /etc/mysql/mariadb.conf.d/60-galera.cnf
+
+    - name: Stop MariaDB # Stop all mariadb service
+      service:
+        name: mariadb
+        state: stopped
+
+    - name: Start galera on primary cluster # Start the first galera server node
+      shell: galera_new_cluster
+      when: isMaster
+
+    - name: Wait..
+      wait_for:
+        timeout: 10
+
+    - name: Join other nodes # Join all other nodes
+      service:
+        name: mariadb
+        state: restarted
+      when: isSlaves
+
+    - name: Wait..
+      wait_for:
+        timeout: 10
+
+    - shell: "mysql -u root --password={{ root_password }} --execute=\"SHOW STATUS LIKE 'wsrep%';\" " # Debugging all wsrep status
+      ignore_errors: yes
+      register: wsrep_status
+
+    - debug: var=wsrep_status.stdout_lines

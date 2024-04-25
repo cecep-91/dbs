@@ -1,0 +1,3 @@
+db_user: "{{ database_vars.mariadb.db_user }}"
+db_password: "{{ database_vars.mariadb.db_password }}"
+root_password: "{{ database_vars.mariadb.root_password }}"

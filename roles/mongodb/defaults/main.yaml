@@ -1,0 +1,4 @@
+mongodb_username: "{{ database_vars.mongodb.mongodb_username }}"
+mongodb_password: "{{ database_vars.mongodb.mongodb_password }}"
+mongodb_data_dir: "{{ database_vars.mongodb.mongodb_data_dir }}"
+replSetName: "{{ database_vars.mongodb.replSetName }}"

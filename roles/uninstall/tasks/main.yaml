@@ -1,0 +1,14 @@
+- include_tasks: uninstall_mariadb.yaml
+  when: uninstall_mariadb
+
+- include_tasks: uninstall_mongodb.yaml
+  when: uninstall_mongodb
+
+- include_tasks: uninstall_postgresql.yaml
+  when: uninstall_postgresql
+
+- include_tasks: uninstall_mysql.yaml
+  when: uninstall_mysql
+
+- include_tasks: uninstall_redis.yaml
+  when: uninstall_redis

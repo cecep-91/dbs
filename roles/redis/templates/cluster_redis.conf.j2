@@ -1,0 +1,15 @@
+port {{ port }}
+dir /var/lib/redis/{{ port }}/
+appendonly no
+protected-mode no
+cluster-enabled yes
+cluster-node-timeout 5000
+cluster-config-file /etc/redis/cluster/{{ port }}/nodes_{{ port }}.conf
+pidfile /var/run/redis/redis_{{ port }}.pid
+logfile /var/log/redis/redis_{{ port }}.log
+loglevel notice
+requirepass {{ access_key }}
+masterauth {{ access_key }}
+bind {{ ansible_default_ipv4.address }}
+cluster-announce-ip {{ ansible_default_ipv4.address }}
+cluster-announce-port {{ port }}

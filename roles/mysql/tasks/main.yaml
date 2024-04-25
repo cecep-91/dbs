@@ -1,0 +1,9 @@
+---
+- include_tasks: standalone.yaml
+  when: install_mysql and type == "standalone"
+
+- include_tasks: master-master.yaml
+  when: install_mysql and type == "cluster" and mysql_cluster_type == "master_master" and (master1 or master2)
+
+- include_tasks: master-slave.yaml
+  when: install_mysql and type == "cluster" and mysql_cluster_type == "master_slave" 

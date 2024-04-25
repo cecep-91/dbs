@@ -1,0 +1,6 @@
+---
+- include_tasks: standalone.yaml
+  when: install_mariadb and type == "standalone"
+
+- include_tasks: galera-cluster.yaml
+  when: install_mariadb and type == "cluster"

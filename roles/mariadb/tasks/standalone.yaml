@@ -1,0 +1,77 @@
+  - name: Install MariaDB-server # Install mariadb packages
+    apt:
+      name: "{{ item }}"
+      state: present
+      update_cache: yes
+    loop:
+        - mariadb-server
+        - mariadb-client
+        - python3-mysqldb # Needed for ansible task with mysql_* module
+
+  - name: Copy somehow-not-exsisted file
+    template:
+      src: debian-start
+      dest: /etc/mysql/debian-start
+      mode: +x
+
+  - name: Start and enable MariaDB service # For mariadb to be able to start
+    service:
+      name: mariadb
+      state: started
+      enabled: yes
+
+  - name: Wait..
+    wait_for:
+      timeout: 5
+
+  - name: Configure root user # Change root user password
+    mysql_user:
+      name: root
+      password: "{{ root_password }}"
+      priv: "*.*:ALL,GRANT"
+      column_case_sensitive: false
+
+  - name: Create MariaDB user # Add user with admin privileges
+    mysql_user:
+      name: "{{ db_user }}"
+      password: "{{ db_password }}"
+      priv: "*.*:ALL,GRANT"
+      host: "%"
+      login_user: root
+      login_password: "{{ root_password }}"
+      state: present
+      column_case_sensitive: false
+
+  - name: Allowing UFW
+    ufw:
+      port: 3306
+      rule: allow
+      proto: tcp
+      state: reloaded
+
+  - name: Copy conf from template # Copy .conf template to server
+    template:
+      src: mariadb_standalone.cnf.j2
+      dest: /etc/mysql/mariadb.conf.d/60-galera.cnf
+ 
+  - name: include conf directory in my.cnf # include /etc/mysql/mariadb.conf.d/ to render custom .conf
+    blockinfile:
+      path: /etc/mysql/my.cnf
+      block: |
+        !includedir /etc/mysql/mariadb.conf.d/
+      create: yes
+
+  - name: Restarting service
+    service:
+      name: mariadb
+      state: restarted
+
+  - name: Wait..
+    wait_for:
+      timeout: 10
+
+  - shell: "systemctl status mariadb" # Debugging mariadb systemctl status
+    ignore_errors: yes
+    register: service_status
+
+  - debug: var=service_status.stdout_lines
