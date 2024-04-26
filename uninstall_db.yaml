@@ -3,10 +3,10 @@
   hosts: svr
   become: yes
   vars:
-    uninstall_mariadb: yes # uninstalling mariadb also uninstalling mysql-common, in order to be able for reinstallation
+    uninstall_mariadb: no # uninstalling mariadb also uninstalling mysql-common, in order to be able for reinstallation
     uninstall_mongodb: yes
-    uninstall_postgresql: yes
-    uninstall_mysql: yes
-    uninstall_redis: yes
+    uninstall_postgresql: no
+    uninstall_mysql: no
+    uninstall_redis: no
   roles:
     - uninstall

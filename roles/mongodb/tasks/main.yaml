@@ -1,12 +1,6 @@
 ---
-- include_tasks: standalone-old.yaml
-  when: install_mongodb_old and type == "standalone"
-
 - include_tasks: standalone.yaml
   when: install_mongodb and type == "standalone"
-
-- include_tasks: cluster-old-replicaset.yaml
-  when: install_mongodb_old and type == "cluster"
 
 - include_tasks: cluster-replica.yaml
   when: install_mongodb and type == "cluster"

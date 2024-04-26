@@ -23,8 +23,8 @@ Automatisasi install database menggunakan ansible playbook.
 **Mongodb**
 - Tipe cluster: Replicaset
 - Cluster minimal node: 3
-- Jika server tidak support mongodb versi 7, install versi 4.4 dengan install_mongodb_old
-- Mongodb client di slave mongodb_old secara default tidak bisa membaca data, gunakan ‘rs.slaveOk()’ query untuk mongo shell atau atur readPreference menjadi secondary. Baca https://stackoverflow.com/questions/39965964/how-do-i-set-secondary-preferred-reads-on-mongo-database-from-parse-server 
+- Jika server tidak support mongodb versi 7, versi 4.4 akan diinstall
+- Mongodb client di slave mongodb 4.4 secara default tidak bisa membaca data, gunakan ‘rs.slaveOk()’ query untuk mongo shell atau atur readPreference menjadi secondary. Baca https://stackoverflow.com/questions/39965964/how-do-i-set-secondary-preferred-reads-on-mongo-database-from-parse-server 
 - Variabel yang dapat diubah: mongodb_username, mongodb_password, mongodb_data_dir, replSetName
 - Standalone mongod.conf: dbs/roles/mongodb/templates/mongodb_standalone.conf.j2
 - Cluster mongod.conf: dbs/roles/mongodb/templates/mongodb_cluster.conf.j2

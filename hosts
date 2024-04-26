@@ -13,8 +13,7 @@ slaves
 # Ubah daftar ip hosts
 [master]
 # Tambahkan nomor id (id=...) di setiap host
-192.168.122.101 id=1 master1=yes master2=no # host ini akan menjadi master1 di mysql_master_master
+10.100.1.71 id=1 master1=yes master2=no # host ini akan menjadi master1 di mysql_master_master
 
 [slaves]
-192.168.122.102 id=2 master1=no master2=yes # host ini akan menjadi master2 di mysql_master_master
-192.168.122.103 id=3
+10.100.1.72 id=2 master1=no master2=yes # host ini akan menjadi master2 di mysql_master_master

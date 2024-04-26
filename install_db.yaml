@@ -3,22 +3,17 @@
   hosts: svr
   become: yes
   vars:
-    type: cluster # cluster // standalone
+    type: standalone # cluster // standalone
 
     #-khusus-mysql-cluster-------------------------------------------
     mysql_cluster_type: master_slave # master_master // master_slave
     #----------------------------------------------------------------
 
-    install_mariadb: yes
+    install_mariadb: no
     install_mysql: no
     install_mongodb: yes
-    install_postgresql: yes
-    install_redis: yes
-
-    #-khusus-mongodb-jika-mongodb-di-atas-tidak-bisa-----------------
-    # Matikan opsi install_mongodb di atas dan aktifkan opsti install_mongodb_old
-    install_mongodb_old: no # Install mongodb v 4.4, support cpu lama
-    #----------------------------------------------------------------
+    install_postgresql: no
+    install_redis: no
 
   roles:
     - mariadb

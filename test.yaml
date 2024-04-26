@@ -1,0 +1,10 @@
+- name: test
+  hosts: master
+  gather_facts: no # not required. A toggle that controls if the fact modules are executed in parallel or serially and in order. This can guarantee the merge order of module facts at the expense of performance. By default it will be true if more than one fact module is used.
+  tasks:
+    - name: Check avx
+      shell: grep flags -m1 /proc/cpuinfo | grep avx
+      ignore_errors: yes
+      register: avx
+    - debug:
+        var: avx

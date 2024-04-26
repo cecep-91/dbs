@@ -13,16 +13,55 @@
         create: yes
       with_items: "{{ ansible_play_hosts_all }}"
 
-    - name: Download and add MongoDB GPG key
+    - name: Check avx support
+      shell: grep flags -m1 /proc/cpuinfo | grep avx
+      ignore_errors: yes
+      register: avx
+
+# If AVX is available ----------------------------------------------------
+
+    - name: Download and add MongoDB 7 GPG key
+      when: avx.rc == 0
       apt_key:
         url: https://www.mongodb.org/static/pgp/server-7.0.asc
         keyring: /usr/share/keyrings/mongodb-server-7.0.gpg
         state: present
 
-    - name: Add MongoDB apt repository
+    - name: Add MongoDB 7 apt repository
+      when: avx.rc == 0
       apt_repository:
         repo: deb [ arch=amd64,arm64 signed-by=/usr/share/keyrings/mongodb-server-7.0.gpg ] https://repo.mongodb.org/apt/ubuntu jammy/mongodb-org/7.0 multiverse
         state: present
+
+# If AVX is not available, installing MongoDB 4.4 ------------------------
+
+    - name: Download libssl1.1 package
+      when: avx.rc != 0
+      get_url:
+        url: http://archive.ubuntu.com/ubuntu/pool/main/o/openssl/libssl1.1_1.1.1f-1ubuntu2_amd64.deb
+        dest: /tmp/libssl1.1_1.1.1f-1ubuntu2_amd64.deb
+
+    - name: Install libssl1.1 package
+      when: avx.rc != 0
+      become: yes
+      apt:
+        deb: /tmp/libssl1.1_1.1.1f-1ubuntu2_amd64.deb
+        state: present
+
+    - name: Add MongoDB 4.4 repository key
+      when: avx.rc != 0
+      apt_key:
+        url: https://www.mongodb.org/static/pgp/server-4.4.asc
+        state: present
+        keyring: /usr/share/keyrings/mongodb-server-4.4.gpg
+
+    - name: Add MongoDB 4.4 repository
+      when: avx.rc != 0
+      apt_repository:
+        repo: "deb [ arch=amd64,arm64 signed-by=/usr/share/keyrings/mongodb-server-4.4.gpg ] https://repo.mongodb.org/apt/ubuntu focal/mongodb-org/4.4 multiverse"
+        state: present
+
+# ------------------------------------------------------------------------
 
     - name: Install MongoDB
       apt:
@@ -31,7 +70,37 @@
         update_cache: yes
       loop:
         - mongodb-org
+        - openssl
         - python3-pymongo # Needed for ansible task with mongodb_* module
+
+    - name: Create a keyfile using openssl
+      when: not use_custom_keyfile and isMaster
+      shell: "openssl rand -base64 756 > {{ keyfile_path }}; chmod 400 {{ keyfile_path }}"
+
+    - name: Copy keyfile from master to slaves
+      when: not use_custom_keyfile and isMaster
+      fetch:
+        src: "{{ keyfile_path }}"
+        dest: /tmp
+
+    - name: Copy keyfile from master to slaves
+      when: not use_custom_keyfile and isSlaves
+      copy:
+        src: "/tmp/{{ groups['master'][0] }}{{ keyfile_path }}"
+        dest: "{{ keyfile_path }}"
+
+    - name: Copy custom keyfile to servers
+      when: use_custom_keyfile
+      copy:
+        src: custom_keyfile.txt
+        dest: "{{ keyfile_path }}"
+
+    - name: Set keyfile ownership
+      file:
+        path: "{{ keyfile_path }}"
+        owner: mongodb
+        group: mongodb
+        mode: 0400
 
     - name: Configure MongoDB # Copy .conf template to server
       template:
