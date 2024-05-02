@@ -74,25 +74,19 @@
         - python3-pymongo # Needed for ansible task with mongodb_* module
 
     - name: Create a keyfile using openssl
-      when: not use_custom_keyfile and isMaster
+      when: isMaster
       shell: "openssl rand -base64 756 > {{ keyfile_path }}; chmod 400 {{ keyfile_path }}"
 
     - name: Copy keyfile from master to slaves
-      when: not use_custom_keyfile and isMaster
+      when: isMaster
       fetch:
         src: "{{ keyfile_path }}"
         dest: /tmp
 
     - name: Copy keyfile from master to slaves
-      when: not use_custom_keyfile and isSlaves
+      when: isSlaves
       copy:
         src: "/tmp/{{ groups['master'][0] }}{{ keyfile_path }}"
-        dest: "{{ keyfile_path }}"
-
-    - name: Copy custom keyfile to servers
-      when: use_custom_keyfile
-      copy:
-        src: custom_keyfile.txt
         dest: "{{ keyfile_path }}"
 
     - name: Set keyfile ownership

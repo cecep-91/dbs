@@ -2,18 +2,21 @@
 [all:vars]
 #-SSH-auth-------------------------------------------------------
 ansible_user=root
-ansible_password=rahasia2023
+ansible_password=rahasia2024
 #----------------------------------------------------------------
 
 [svr:children]
 master
 slaves
 
-
 # Ubah daftar ip hosts
 [master]
-# Tambahkan nomor id (id=...) di setiap host
-10.100.1.71 id=1 master1=yes master2=no # host ini akan menjadi master1 di mysql_master_master
+# Tambahkan nomor 'id' (id=...) di setiap host
+# 'id' digunakan untuk pengaturan hostname mongodb cluster dan server-id mysql master to slave
+# 'master1' adalah variable yang mengindikasikan jika node ini akan menjadi master1 di mysql master to master cluster
+# 'master2' adalah variable yang mengindikasikan jika node ini akan menjadi master2 di mysql master to master cluster
+10.100.1.71 id=1 master1=yes master2=no # node ini akan menjadi master1 di mysql_master_master
 
 [slaves]
-10.100.1.72 id=2 master1=no master2=yes # host ini akan menjadi master2 di mysql_master_master
+10.100.1.72 id=2 master1=no master2=yes # node ini akan menjadi master2 di mysql_master_master
+10.100.1.73 id=3

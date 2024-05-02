@@ -3,7 +3,7 @@
   hosts: svr
   become: yes
   vars:
-    type: standalone # cluster // standalone
+    type: cluster # cluster // standalone
 
     #-khusus-mysql-cluster-------------------------------------------
     mysql_cluster_type: master_slave # master_master // master_slave

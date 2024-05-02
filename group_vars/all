@@ -8,13 +8,12 @@ database_vars:
 
   mongodb:
     # Vars both standalone & cluster
-    mongodb_username: engineer            # user with 'root' role
+    mongodb_username: admin               # user with 'root' role
     mongodb_password: rahasia2024         # password for above user
     mongodb_data_dir: /var/lib/mongodb    # Mongodb data directory
     # Vars cluster only
     replSetName: rs0                      # mongodb replicaset name
     keyfile_path: /etc/ssl/mongodb_replicaset_keyfile.txt
-    use_custom_keyfile: no                # store custom keyfile in dbs/roles/mongodb/templates/custom_keyfile.txt
 
   mysql:
     # Vars for both standalone & cluster
