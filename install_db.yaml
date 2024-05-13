@@ -9,11 +9,26 @@
     mysql_cluster_type: master_slave # master_master // master_slave
     #----------------------------------------------------------------
 
-    install_mariadb: no
-    install_mysql: no
+    install_mariadb: yes
+    install_mysql: yes
     install_mongodb: yes
-    install_postgresql: no
-    install_redis: no
+    install_postgresql: yes
+    install_redis: yes
+
+  pre_tasks:
+    - name: Set nodes id
+      set_fact:
+        id: "{{ groups['svr'].index(ansible_host) | int + 1 }}"
+
+    - name: Make first member of master group to be master1 in master to master mysql
+      when: "('master' in group_names) and (groups['master'].index(ansible_host) == 0)"
+      set_fact:
+        master1: "yes"
+
+    - name: Make first member of slaves group to be master2 in master to master mysql
+      when: "('slaves' in group_names) and (groups['slaves'].index(ansible_host) == 0)"
+      set_fact:
+        master2: "yes"
 
   roles:
     - mariadb

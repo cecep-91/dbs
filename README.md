@@ -7,7 +7,7 @@ Automatisasi install database menggunakan ansible playbook.
 - Databases: Mariadb, Mysql, Postgresql, Redis, Mongodb
 - Hanya pernah ditest di server Ubuntu 22.04 LTS
 - Belum ada error handling di playbook
-- Inventory/hosts dapat dirubah di dbs/hosts, pastikan jangan mengubah nama group ataupun variabel (master1, master2)
+- Inventory/hosts dapat dirubah di dbs/hosts
 - Server yang masuk ke group master hanya boleh 1
 - Variabel untuk setiap database berada di dbs/group_vars/all
 - .conf setiap database bisa di-konfigurasi kecuali redis standalone
@@ -54,10 +54,10 @@ Automatisasi install database menggunakan ansible playbook.
 ## 2. Menjalankan playbook
 ### A. Cara menjalankan playbook install_db.yaml
 Pertama install dulu package ansible ('apt install ansible' untuk ubuntu)
-1. Edit Inventory/hosts di dbs/hosts, sesuaikan IP menjadi server yang ingin di-manage. Jika ingin menambah server, tambahkan di group slave dan beri variabel id.
+1. Edit Inventory/hosts di dbs/hosts, sesuaikan IP menjadi server yang ingin di-manage. Jika ingin menambah server, tambahkan di group slave.
 2. Edit dbs/install_db.yaml, pilih database mana yang ingin diinstall dan tentukan tipenya (cluster/standalone).
 3. Edit variabel yang mungkin ingin diubah di dbs/group_vars/all.
-4. Jika ingin menambah konfigurasi di .conf database, edit file .conf yang sudah saya definisikan di bab sebelumnya.
+4. Jika ingin menambah konfigurasi di .conf database, edit file .conf yang path-nya sudah saya definisikan di bab sebelumnya.
 5. Jalankan playbook dengan memasuki direktori dbs/, dan jalankan perintah:
 ansible-playbook install_db.yaml
 ### B. Cara menjalankan playbook uninstall_db.yaml

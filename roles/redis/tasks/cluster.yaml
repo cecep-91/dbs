@@ -1,4 +1,4 @@
- # Redis cluster add 2 redis port and service on each server, port 7000 as a master and 7001 as a slave
+# Redis cluster add 2 redis port and service on each server, port 7000 as a master and 7001 as a slave
     - name: Update apt cache
       apt:
         update_cache: yes
