@@ -15,7 +15,7 @@
 
     - name: Check avx support
       shell: grep flags -m1 /proc/cpuinfo | grep avx
-      ignore_errors: yes
+      ignore_errors: true
       register: avx
 
 # If AVX is available ----------------------------------------------------
@@ -43,7 +43,7 @@
 
     - name: Install libssl1.1 package
       when: avx.rc != 0
-      become: yes
+      become: true
       apt:
         deb: /tmp/libssl1.1_1.1.1f-1ubuntu2_amd64.deb
         state: present
@@ -150,8 +150,8 @@
         state: present
       when: isMaster
 
-    - shell: "systemctl status mongod" # Debuging mongodb systemctl status
-      ignore_errors: yes
-      register: service_status
+    - shell: "echo 'rs.status()' | mongo" # Debuging mongodb cluster status
+      ignore_errors: true
+      register: cluster_status
 
-    - debug: var=service_status.stdout_lines
+    - debug: var=cluster_status.stdout_lines

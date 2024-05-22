@@ -9,11 +9,11 @@
     mysql_cluster_type: master_slave # master_master // master_slave
     #----------------------------------------------------------------
 
-    install_mariadb: yes
-    install_mysql: yes
-    install_mongodb: yes
-    install_postgresql: yes
-    install_redis: yes
+    install_mariadb: no
+    install_mysql: no
+    install_mongodb: no
+    install_postgresql: no
+    install_redis: no
 
   pre_tasks:
     - name: Set nodes id
